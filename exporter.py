@@ -9,7 +9,11 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Dict
 import dateutil.parser as dp
+import argparse
+import requests
+import urllib3
 
+args = None
 empty_url_cnt: int = 0
 double_record_cnt: int = 0
 
@@ -26,8 +30,6 @@ records: Dict[str, Record] = dict()
 def transform(input_file: str):
     tree = ET.parse(input_file)
     root = tree.getroot()
-
-    print(f"url,state,labels,saved_at,published_at")
 
     for elem in root:
         rec = Record()
@@ -78,7 +80,8 @@ def save_record(rec: Record):
     records[rec.url] = rec 
 
 def print_records():
-        
+    print(f"url,state,labels,saved_at,published_at")
+
     def toTimestamp(stamp: str):
         return int(dp.parse(stamp).timestamp()*1e3)
 
@@ -88,16 +91,42 @@ def print_records():
         # url,state,labels,saved_at,published_at
         print(f"\"{rec.url}\",SUCCEEDED,\"{clean_tags}\",{toTimestamp(rec.created)},{toTimestamp(rec.updated)}")
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
+def verify_records():
+    for rec in records.values():
+        try:
+            result = requests.head(rec.url, timeout=8.0)
+        except Exception as e:
+            print(f"Exception happend: {e}")
+
+        print(f"Requesting: {rec.url} response={result}")
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filename")
+    parser.add_argument("-c", "--check",
+                        help="checks the url rather than writing the output", action="store_true")
+
+    global args
+    local_args = parser.parse_args()
+    args = local_args
+    
+    if len(args.filename) < 1:
         print("Please give ENEX XML-file as first argument")
         sys.exit(1)
 
-    transform(sys.argv[1])
-    print_records()
+    transform(args.filename)
+
+    if args.check:
+        print(f"Extracted {len(records)} urls. Checking.", file=sys.stderr)
+        verify_records()
+    else:
+        print_records()
 
     if empty_url_cnt > 0:
         print(f"Number of empty record found: {empty_url_cnt}", file=sys.stderr)
     
     if double_record_cnt > 0:
         print(f"Number of duplicate records found: {double_record_cnt}", file=sys.stderr)
+
+if __name__ == '__main__':
+    sys.exit(main())
