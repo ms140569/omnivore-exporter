@@ -7,8 +7,11 @@ import xml.etree.ElementTree as ET
 import csv
 import sys
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Dict
 import dateutil.parser as dp
+
+empty_url_cnt: int = 0
+double_record_cnt: int = 0
 
 @dataclass
 class Record:
@@ -17,6 +20,8 @@ class Record:
     updated: str = ""
     tags: List[str] = field(default_factory=lambda: [])
     url: str = ""
+
+records: Dict[str, Record] = dict()
 
 def transform(input_file: str):
     tree = ET.parse(input_file)
@@ -47,20 +52,41 @@ def transform(input_file: str):
                         rec.url = i.text
         
         rec.tags = tags
-        render(rec)
+        save_record(rec)
 
-def render(rec: Record):
-    clean_tags = str(rec.tags).replace('\'', '').replace(' ', '')
+def save_record(rec: Record):
+    global empty_url_cnt
+    global double_record_cnt
+    global records
 
+    if len(rec.url) == 0:
+        print(f"Empty record found: {rec.tags}", file=sys.stderr)
+        empty_url_cnt += 1
+        return
+    
+    if rec.url in records:
+        print(f"Duplicate found: {rec.url}", file=sys.stderr)
+        double_record_cnt += 1
+
+        if len(rec.tags) > len(records.get(rec.url).tags):
+            records[rec.url] = rec
+            print(f"Overriding duplicate: {rec.url}, {rec.tags}", file=sys.stderr)
+            return
+
+        print(f"Dropping duplicate: {rec.url}, {rec.tags}", file=sys.stderr)
+
+    records[rec.url] = rec 
+
+def print_records():
+        
     def toTimestamp(stamp: str):
         return int(dp.parse(stamp).timestamp()*1e3)
 
-    if len(rec.url) == 0:
-        print(f"Empty record found: {clean_tags}", file=sys.stderr)
-        return
+    for rec in records.values():
+        clean_tags = str(rec.tags).replace('\'', '').replace(' ', '')
 
-    # url,state,labels,saved_at,published_at
-    print(f"\"{rec.url}\",SUCCEEDED,\"{clean_tags}\",{toTimestamp(rec.created)},{toTimestamp(rec.updated)}")
+        # url,state,labels,saved_at,published_at
+        print(f"\"{rec.url}\",SUCCEEDED,\"{clean_tags}\",{toTimestamp(rec.created)},{toTimestamp(rec.updated)}")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
@@ -68,3 +94,10 @@ if __name__ == '__main__':
         sys.exit(1)
 
     transform(sys.argv[1])
+    print_records()
+
+    if empty_url_cnt > 0:
+        print(f"Number of empty record found: {empty_url_cnt}", file=sys.stderr)
+    
+    if double_record_cnt > 0:
+        print(f"Number of duplicate records found: {double_record_cnt}", file=sys.stderr)
