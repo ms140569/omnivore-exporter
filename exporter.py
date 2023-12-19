@@ -55,8 +55,12 @@ def render(rec: Record):
     def toTimestamp(stamp: str):
         return int(dp.parse(stamp).timestamp()*1e3)
 
+    if len(rec.url) == 0:
+        print(f"Empty record found: {clean_tags}", file=sys.stderr)
+        return
+
     # url,state,labels,saved_at,published_at
-    print(f"{rec.url},SUCCEEDED,\"{clean_tags}\",{toTimestamp(rec.created)},{toTimestamp(rec.updated)}")
+    print(f"\"{rec.url}\",SUCCEEDED,\"{clean_tags}\",{toTimestamp(rec.created)},{toTimestamp(rec.updated)}")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
