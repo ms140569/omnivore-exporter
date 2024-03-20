@@ -4,14 +4,12 @@
 # https://docs.omnivore.app/using/importing.html#importing-csv-files
 
 import xml.etree.ElementTree as ET
-import csv
 import sys
 from dataclasses import dataclass, field
 from typing import List, Dict
 import dateutil.parser as dp
 import argparse
 import requests
-import urllib3
 
 args = None
 empty_url_cnt: int = 0
@@ -62,20 +60,20 @@ def save_record(rec: Record):
     global records
 
     if len(rec.url) == 0:
-        print(f"Empty record found: {rec.tags}", file=sys.stderr)
+        perr(f"Empty record found: {rec.tags}")
         empty_url_cnt += 1
         return
     
     if rec.url in records:
-        print(f"Duplicate found: {rec.url}", file=sys.stderr)
+        perr(f"Duplicate found: {rec.url}")
         double_record_cnt += 1
 
         if len(rec.tags) > len(records.get(rec.url).tags):
             records[rec.url] = rec
-            print(f"Overriding duplicate: {rec.url}, {rec.tags}", file=sys.stderr)
+            perr(f"Overriding duplicate: {rec.url}, {rec.tags}")
             return
 
-        print(f"Dropping duplicate: {rec.url}, {rec.tags}", file=sys.stderr)
+        perr(f"Dropping duplicate: {rec.url}, {rec.tags}")
 
     records[rec.url] = rec 
 
@@ -117,16 +115,20 @@ def main():
     transform(args.filename)
 
     if args.check:
-        print(f"Extracted {len(records)} urls. Checking.", file=sys.stderr)
+        perr(f"Extracted {len(records)} urls. Checking.")
         verify_records()
     else:
         print_records()
 
     if empty_url_cnt > 0:
-        print(f"Number of empty record found: {empty_url_cnt}", file=sys.stderr)
+        perr(f"Number of empty record found: {empty_url_cnt}")
     
     if double_record_cnt > 0:
-        print(f"Number of duplicate records found: {double_record_cnt}", file=sys.stderr)
+        perr(f"Number of duplicate records found: {double_record_cnt}")
+
+
+def perr(msg: str):
+    print(msg, file=sys.stderr)    
 
 if __name__ == '__main__':
     sys.exit(main())
